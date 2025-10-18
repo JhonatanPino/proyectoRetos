@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use App\Models\User;
 use App\Models\Challenge;
 use App\Models\Answer;
@@ -14,22 +13,30 @@ use App\Http\Resources\UserAnswerResource;
 
 class UserAnswerController extends Controller
 {
+    public function __construct()
+    {
+        // proteger todas las rutas excepto index/show si quieres público
+        $this->middleware('auth:api')->except(['index','show']);
+    }
+
+    // Listar intentos (sin paginación). Opcional filter por user_id / challenge_id
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 15);
-        $query = UserAnswer::query()->with(['user', 'challenge', 'selectedAnswer']);
+        $query = UserAnswer::with(['user', 'challenge', 'selectedAnswer']);
 
         if ($request->filled('user_id')) {
             $query->where('user_id', $request->query('user_id'));
         }
+
         if ($request->filled('challenge_id')) {
             $query->where('challenge_id', $request->query('challenge_id'));
         }
 
-        $items = $query->orderByDesc('submitted_at')->paginate($perPage);
+        $items = $query->orderByDesc('submitted_at')->get();
         return UserAnswerResource::collection($items);
     }
 
+    // Crear un intento (el usuario autenticado puede crear para sí; admins pueden crear para cualquier user_id)
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -39,18 +46,35 @@ class UserAnswerController extends Controller
             'submitted_at' => ['sometimes','date'],
         ]);
 
+        $authUser = $request->user();
+
+        // Regla: los admins NO pueden responder retos
+        if ($authUser->role === 'admin') {
+            return response()->json(['message' => 'Los administradores no pueden responder retos.'], 403);
+        }
+
+        // Permisos: si no es admin, solo permitir crear para sí mismo
+        if ($authUser->role !== 'admin' && $authUser->id !== (int)$validated['user_id']) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         $user = User::findOrFail($validated['user_id']);
+        // No permitir crear sumisiones a usuarios admin (regla: admin no responde)
+        if ($user->role === 'admin') {
+            return response()->json(['message' => 'No se puede crear una sumisión para un usuario administrador.'], 422);
+        }
+
         $challenge = Challenge::findOrFail($validated['challenge_id']);
         $answer = Answer::findOrFail($validated['selected_answer_id']);
 
-        if ($answer->challenge_id !== (int) $challenge->id) {
+        if ($answer->challenge_id !== (int)$challenge->id) {
             return response()->json(['message' => 'La respuesta seleccionada no pertenece al reto indicado.'], 422);
         }
 
         $isCorrect = (bool) ($answer->is_correct ?? false);
 
-        DB::transaction(function () use ($validated, $user, $challenge, $answer, $isCorrect, &$userAnswer) {
-            // comprobar si ya existía una sumisión correcta ANTES de crear
+        DB::transaction(function () use ($user, $challenge, $answer, $isCorrect, $validated, &$userAnswer) {
+            // comprobar si ya existía una sumisión correcta previa (antes de insertar)
             $alreadyCorrect = false;
             if ($isCorrect) {
                 $alreadyCorrect = UserAnswer::where('user_id', $user->id)
@@ -67,23 +91,30 @@ class UserAnswerController extends Controller
                 'submitted_at' => $validated['submitted_at'] ?? now(),
             ]);
 
-            if ($isCorrect && ! $alreadyCorrect) {
+            // Sólo incrementar score si el usuario NO es admin
+            if ($isCorrect && ! $alreadyCorrect && $user->role !== 'admin') {
                 $points = (int) ($challenge->score_value ?? 0);
                 $user->increment('score', $points);
             }
         });
 
-        return (new UserAnswerResource($userAnswer->load(['user','challenge','selectedAnswer'])))
-            ->response()->setStatusCode(201);
+        return (new UserAnswerResource($userAnswer->load(['user','challenge','selectedAnswer'])))->response()->setStatusCode(201);
     }
 
+    // Mostrar intento
     public function show(UserAnswer $userAnswer)
     {
         return new UserAnswerResource($userAnswer->load(['user','challenge','selectedAnswer']));
     }
 
+    // Actualizar intento (solo admin o el propio autor)
     public function update(Request $request, UserAnswer $userAnswer)
     {
+        $authUser = $request->user();
+        if ($authUser->role !== 'admin' && $authUser->id !== $userAnswer->user_id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         $validated = $request->validate([
             'selected_answer_id' => ['sometimes','integer','exists:answers,id'],
             'submitted_at' => ['sometimes','date'],
@@ -91,15 +122,11 @@ class UserAnswerController extends Controller
 
         DB::transaction(function () use ($validated, $userAnswer, &$userAnswerUpdated) {
             $originalCorrect = (bool) $userAnswer->is_correct_submission;
-            $originalAnswerId = $userAnswer->selected_answer_id;
 
             if (isset($validated['selected_answer_id'])) {
                 $newAnswer = Answer::findOrFail($validated['selected_answer_id']);
                 if ($newAnswer->challenge_id !== (int) $userAnswer->challenge_id) {
-                    throw new \Illuminate\Validation\ValidationException(
-                        \Illuminate\Support\Facades\Validator::make([], []),
-                        response()->json(['message' => 'La respuesta seleccionada no pertenece al reto indicado.'], 422)
-                    );
+                    abort(422, 'La respuesta seleccionada no pertenece al reto indicado.');
                 }
                 $userAnswer->selected_answer_id = $newAnswer->id;
                 $userAnswer->is_correct_submission = (bool) ($newAnswer->is_correct ?? false);
@@ -111,33 +138,34 @@ class UserAnswerController extends Controller
 
             $userAnswer->save();
 
-            // Ajustar puntuación del usuario si cambió el estado correcto/incorrecto
+            // ajustar puntuación del usuario si cambió el estado correcto/incorrecto
             $user = $userAnswer->user;
             $challenge = $userAnswer->challenge;
             $points = (int) ($challenge->score_value ?? 0);
             $nowCorrect = (bool) $userAnswer->is_correct_submission;
 
-            if (! $originalCorrect && $nowCorrect) {
-                // pasar de incorrecta a correcta -> sumar si no tenía otra correcta previa
-                $hadOtherCorrect = UserAnswer::where('user_id', $user->id)
-                    ->where('challenge_id', $challenge->id)
-                    ->where('is_correct_submission', true)
-                    ->where('id', '!=', $userAnswer->id)
-                    ->exists();
+            // Sólo ajustar score si el usuario objetivo NO es admin
+            if ($user->role !== 'admin') {
+                if (! $originalCorrect && $nowCorrect) {
+                    $hadOtherCorrect = UserAnswer::where('user_id', $user->id)
+                        ->where('challenge_id', $challenge->id)
+                        ->where('is_correct_submission', true)
+                        ->where('id', '!=', $userAnswer->id)
+                        ->exists();
 
-                if (! $hadOtherCorrect) {
-                    $user->increment('score', $points);
-                }
-            } elseif ($originalCorrect && ! $nowCorrect) {
-                // pasó de correcta a incorrecta -> restar puntos si no existe otra sumisión correcta
-                $otherCorrect = UserAnswer::where('user_id', $user->id)
-                    ->where('challenge_id', $challenge->id)
-                    ->where('is_correct_submission', true)
-                    ->where('id', '!=', $userAnswer->id)
-                    ->exists();
+                    if (! $hadOtherCorrect) {
+                        $user->increment('score', $points);
+                    }
+                } elseif ($originalCorrect && ! $nowCorrect) {
+                    $otherCorrect = UserAnswer::where('user_id', $user->id)
+                        ->where('challenge_id', $challenge->id)
+                        ->where('is_correct_submission', true)
+                        ->where('id', '!=', $userAnswer->id)
+                        ->exists();
 
-                if (! $otherCorrect) {
-                    $user->decrement('score', $points);
+                    if (! $otherCorrect) {
+                        $user->decrement('score', $points);
+                    }
                 }
             }
 
@@ -147,22 +175,28 @@ class UserAnswerController extends Controller
         return new UserAnswerResource($userAnswerUpdated->load(['user','challenge','selectedAnswer']));
     }
 
-    public function destroy(UserAnswer $userAnswer)
+    // Eliminar intento (solo admin o autor)
+    public function destroy(Request $request, UserAnswer $userAnswer)
     {
+        $authUser = $request->user();
+        if ($authUser->role !== 'admin' && $authUser->id !== $userAnswer->user_id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         DB::transaction(function () use ($userAnswer) {
-            // Si la sumisión a eliminar era correcta y no hay otra correcta, restar puntos
             if ($userAnswer->is_correct_submission) {
                 $user = $userAnswer->user;
                 $challenge = $userAnswer->challenge;
                 $points = (int) ($challenge->score_value ?? 0);
 
+                // Sólo decrementar si el usuario objetivo NO es admin
                 $otherCorrect = UserAnswer::where('user_id', $user->id)
                     ->where('challenge_id', $challenge->id)
                     ->where('is_correct_submission', true)
                     ->where('id', '!=', $userAnswer->id)
                     ->exists();
 
-                if (! $otherCorrect) {
+                if ($user->role !== 'admin' && ! $otherCorrect) {
                     $user->decrement('score', $points);
                 }
             }

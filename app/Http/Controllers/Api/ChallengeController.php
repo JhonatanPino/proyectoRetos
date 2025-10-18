@@ -6,34 +6,85 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Models\Challenge;
 use App\Models\Category;
+use App\Http\Resources\ChallengeResource;
 
 class ChallengeController extends Controller
 {
-    // Listar todos los challenges con su categoría
-    public function index()
+    public function __construct()
     {
-        $challenges = Challenge::with('category')->get();
-        return view('challenges.index', compact('challenges'));
+        // Rutas públicas: index, show; el resto requiere autenticación
+        $this->middleware('auth:api')->except(['index', 'show']);
+        $this->middleware('role:admin')->only(['store','update','destroy']);
+
     }
 
-    // Crear un nuevo challenge
+    // Listar todos los challenges con su categoría y respuestas (eager load)
+    public function index()
+    {
+        $challenges = Challenge::with(['category', 'answers'])->get();
+        return ChallengeResource::collection($challenges);
+    }
+
+    // Mostrar un challenge concreto (con relaciones)
+    public function show(Challenge $challenge)
+    {
+        return new ChallengeResource($challenge->load(['category', 'answers']));
+    }
+
+    // Crear un nuevo challenge (solo admin)
     public function store(Request $request)
     {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
         $validated = $request->validate([
-            'category_id' => 'required|exists:categories,id',
+            'category_id' => 'required|integer|exists:categories,id',
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'score_value' => 'required|integer|min:0'
+            'score_value' => 'required|integer|min:0',
         ]);
 
         $challenge = Challenge::create($validated);
-        return response()->json($challenge, 201); // o new ChallengeResource($challenge)
+
+        return (new ChallengeResource($challenge->load('category')))->response()->setStatusCode(201);
     }
 
-    // Challenges de una categoría específica
+    // Actualizar un challenge (solo admin)
+    public function update(Request $request, Challenge $challenge)
+    {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $validated = $request->validate([
+            'category_id' => 'sometimes|integer|exists:categories,id',
+            'name' => 'sometimes|string|max:255',
+            'description' => 'sometimes|string',
+            'score_value' => 'sometimes|integer|min:0',
+        ]);
+
+        $challenge->update($validated);
+
+        return new ChallengeResource($challenge->fresh()->load(['category', 'answers']));
+    }
+
+    // Eliminar un challenge (solo admin)
+    public function destroy(Request $request, Challenge $challenge)
+    {
+        if ($request->user()->role !== 'admin') {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        $challenge->delete();
+        return response()->noContent();
+    }
+
+    // Listar challenges por categoría
     public function byCategory($categoryId)
     {
-        $challenges = Challenge::byCategory($categoryId)->with('category')->get();
-        return response()->json($challenges);
+        $category = Category::findOrFail($categoryId);
+        $challenges = $category->challenges()->with(['category', 'answers'])->get();
+        return ChallengeResource::collection($challenges);
     }
 }

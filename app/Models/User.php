@@ -29,6 +29,16 @@ class User extends Authenticatable implements JWTSubject
     protected $casts = [
         'score' => 'integer',
     ];
+    
+    // Evitar que un admin tenga score distinto de 0 al guardar
+    protected static function booted()
+    {
+        static::saving(function (User $user) {
+            if ($user->role === 'admin') {
+                $user->score = 0;
+            }
+        });
+    }
 
     // Mutator: siempre hashea la contraseña al asignarla
     protected function password(): Attribute
@@ -38,8 +48,6 @@ class User extends Authenticatable implements JWTSubject
                 if (! $value) {
                     return null;
                 }
-
-                // Si ya es un hash válido y no necesita rehash, devolver tal cual
                 if (! Hash::needsRehash($value)) {
                     return $value;
                 }

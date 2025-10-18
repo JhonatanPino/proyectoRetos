@@ -17,8 +17,8 @@ class UserSeeder extends Seeder
             'role' => 'admin'
         ]);
 
-        // 20 usuarios normales
-        User::factory(20)->create();
++        // Crear 20 usuarios forzando el role 'user' (evita que la factory genere admins)
++        User::factory()->count(20)->state(['role' => 'user'])->create();
 
         // Completar algunos challenges aleatorios
         User::all()->each(function ($user) {

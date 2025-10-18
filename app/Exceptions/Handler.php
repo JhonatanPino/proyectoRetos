@@ -4,6 +4,9 @@ namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
+use Symfony\Component\HttpFoundation\Response;
 
 class Handler extends ExceptionHandler
 {
@@ -46,5 +49,21 @@ class Handler extends ExceptionHandler
         $this->reportable(function (Throwable $e) {
             //
         });
+
+        // Responder JSON para autenticación / autorización de forma consistente
+        $this->renderable(function (\Illuminate\Auth\AuthenticationException $e, $request) {
+            return response()->json([
+                'message' => 'No autenticado.',
+                'hint' => 'Proporcione un token válido en Authorization: Bearer <token>'
+            ], \Symfony\Component\HttpFoundation\Response::HTTP_UNAUTHORIZED);
+        });
+
+        $this->renderable(function (\Illuminate\Auth\Access\AuthorizationException $e, $request) {
+            return response()->json([
+                'message' => 'No autorizado.',
+                'detail' => $e->getMessage() ?: 'No tiene permisos para realizar esta acción.'
+            ], \Symfony\Component\HttpFoundation\Response::HTTP_FORBIDDEN);
+        });
     }
+
 }

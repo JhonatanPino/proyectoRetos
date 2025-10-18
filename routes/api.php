@@ -12,9 +12,6 @@ Route::middleware(['auth:api'])->group(function () {
     Route::post('auth/refresh', [AuthController::class,'refresh']);
     Route::get('auth/me', [AuthController::class,'me']);
 
-    // Rutas protegidas de la API (ejemplos)
-    // Route::apiResource('challenges', Api\ChallengeController::class);
-    // Route::apiResource('answers', Api\AnswerController::class);
 });
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {

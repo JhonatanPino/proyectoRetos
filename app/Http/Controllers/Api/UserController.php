@@ -6,30 +6,33 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use App\Http\Resources\UserResource;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rule;
+use App\Http\Requests\StoreUserRequest;
+use App\Http\Requests\UpdateUserRequest;
 
 class UserController extends Controller
 {
+
+    public function __construct()
+    {
+        $this->middleware('auth:api')->except(['store']); // permitir registro si lo deseas; ajusta según tu política
+        $this->authorizeResource(User::class, 'user');
+    }
+
+    // Listar todos los usuarios (sin paginación)
     public function index(Request $request)
     {
-        $perPage = (int) $request->query('per_page', 15);
-        $users = User::orderByDesc('score')->paginate($perPage);
+        $users = User::orderByDesc('score')->get();
         return UserResource::collection($users);
     }
 
-    public function store(Request $request)
+    // Crear usuario (StoreUserRequest valida y autoriza)
+    public function store(StoreUserRequest $request)
     {
-        $validated = $request->validate([
-            'username' => ['required','string','max:255','unique:users,username'],
-            'password' => ['required','string','min:6'],
-            'score'    => ['sometimes','integer'],
-            'role'     => ['required', Rule::in(['admin','user'])],
-        ]);
+        $validated = $request->validated();
 
         $user = User::create([
             'username' => $validated['username'],
-            'password' => Hash::make($validated['password']),
+            'password' => $validated['password'], // el mutator en el modelo hashará si es necesario
             'score'    => $validated['score'] ?? 0,
             'role'     => $validated['role'],
         ]);
@@ -37,34 +40,34 @@ class UserController extends Controller
         return (new UserResource($user))->response()->setStatusCode(201);
     }
 
+    // Mostrar usuario
     public function show(User $user)
     {
         return new UserResource($user);
     }
 
-    public function update(Request $request, User $user)
+    // Actualizar usuario (UpdateUserRequest valida y autoriza)
+    public function update(UpdateUserRequest $request, User $user)
     {
-        $validated = $request->validate([
-            'username' => ['sometimes','string','max:255', Rule::unique('users','username')->ignore($user->id)],
-            'password' => ['sometimes','nullable','string','min:6'],
-            'score'    => ['sometimes','integer'],
-            'role'     => ['sometimes', Rule::in(['admin','user'])],
-        ]);
+        $validated = $request->validated();
 
         if (array_key_exists('password', $validated) && $validated['password']) {
-            $validated['password'] = Hash::make($validated['password']);
+            // dejar que el mutator procese el hash
+            $user->password = $validated['password'];
         } else {
             unset($validated['password']);
         }
 
         $user->update($validated);
 
-        return new UserResource($user);
+        return new UserResource($user->fresh());
     }
 
+    // Eliminar usuario
     public function destroy(User $user)
     {
         $user->delete();
         return response()->noContent();
     }
+
 }
