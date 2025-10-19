@@ -9,11 +9,11 @@ return new class extends Migration
     public function up()
     {
         Schema::create('challenges', function (Blueprint $table) {
-            $table->id(); // id (PK, INT, AUTO_INCREMENT)
+            $table->id(); 
             $table->foreignId('category_id')->constrained('categories')->onDelete('cascade'); // FK a Categories
-            $table->string('name'); // VARCHAR
-            $table->string('description', 250)->unique(); // VARCHAR(250)
-            $table->integer('score_value'); // INT - Puntos que otorga el reto
+            $table->string('name');
+            $table->string('description', 250)->unique();
+            $table->integer('score_value');
             $table->timestamps();
             
             // Índice para mejorar consultas por categoría

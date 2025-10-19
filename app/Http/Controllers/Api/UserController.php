@@ -18,10 +18,10 @@ class UserController extends Controller
         $this->authorizeResource(User::class, 'user');
     }
 
-    // Listar todos los usuarios (sin paginación)
-    public function index(Request $request)
+    // Listar todos los usuarios
+    public function index()
     {
-        $users = User::orderByDesc('score')->get();
+        $users = User::orderBy('id')->get();
         return UserResource::collection($users);
     }
 
@@ -32,7 +32,7 @@ class UserController extends Controller
 
         $user = User::create([
             'username' => $validated['username'],
-            'password' => $validated['password'], // el mutator en el modelo hashará si es necesario
+            'password' => $validated['password'],
             'score'    => $validated['score'] ?? 0,
             'role'     => $validated['role'],
         ]);

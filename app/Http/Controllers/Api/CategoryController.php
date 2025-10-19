@@ -6,6 +6,8 @@ use App\Models\Category;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Resources\CategoryResource;
+use Illuminate\Support\Facades\Validator;
+use App\Models\Challenge;
 
 class CategoryController extends Controller
 {
@@ -13,7 +15,6 @@ class CategoryController extends Controller
     {
         $this->middleware('auth:api')->except(['index','show']);
         $this->middleware('role:admin')->only(['store','update','destroy']);
-
     }
 
     // Listar todas las categorías con conteo de challenges
@@ -22,7 +23,6 @@ class CategoryController extends Controller
         $categories = Category::withCount('challenges')->get();
         return CategoryResource::collection($categories);
     }
-
     // Crear categoría (validación incluida) — solo admin
     public function store(Request $request)
     {
@@ -30,13 +30,25 @@ class CategoryController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $validated = $request->validate([
+        $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:categories,name'
+        ], [
+            'name.required' => 'El nombre de la categoría es obligatorio.',
+            'name.unique' => 'Ya existe una categoría con ese nombre.',
         ]);
 
-        $category = Category::create($validated);
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
 
-        return (new CategoryResource($category))->response()->setStatusCode(201);
+        $category = Category::create([
+            'name' => $request->name,
+        ]);
+
+        return response()->json([
+            'message' => 'Categoría creada exitosamente.',
+            'data' => new CategoryResource($category)
+        ], 201);
     }
 
     // Mostrar categoría con sus challenges

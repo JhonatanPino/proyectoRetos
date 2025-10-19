@@ -7,6 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Challenge;
 use App\Models\Category;
 use App\Http\Resources\ChallengeResource;
+use App\Models\Answer;
+use Illuminate\Support\Facades\DB;
 
 class ChallengeController extends Controller
 {
@@ -39,15 +41,68 @@ class ChallengeController extends Controller
         }
 
         $validated = $request->validate([
-            'category_id' => 'required|integer|exists:categories,id',
+            'category_id' => 'required|exists:categories,id',
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'score_value' => 'required|integer|min:0',
+            'answers' => 'required|array|min:1',
+            'answers.*.description' => 'required|string',
+            'answers.*.is_correct' => 'sometimes|boolean',
+        ], [
+            'name.required' => 'El nombre del reto es obligatorio.',
+            'category_id.required' => 'La categoría es obligatoria.',
+            'category_id.exists' => 'La categoría seleccionada no existe.',
+            'description.required' => 'La descripción del reto es obligatoria.',
+            'score_value.required' => 'El valor de puntuación es obligatorio.',
+            'answers.required' => 'Debe enviar las respuestas asociadas al reto.',
+            'answers.*.description.required' => 'Cada respuesta necesita una descripción.',
         ]);
 
-        $challenge = Challenge::create($validated);
+        // Validar que haya al menos una respuesta marcada como correcta
+        $hasCorrect = collect($validated['answers'])->contains(fn($a) => !empty($a['is_correct']));
+        if (! $hasCorrect) {
+            return response()->json(['message' => 'Debe marcar al menos una respuesta como correcta.'], 422);
+        }
 
-        return (new ChallengeResource($challenge->load('category')))->response()->setStatusCode(201);
+        DB::beginTransaction();
+        try {
+            $challenge = Challenge::create([
+                'category_id' => $validated['category_id'],
+                'name' => $validated['name'],
+                'description' => $validated['description'],
+                'score_value' => $validated['score_value'],
+            ]);
+
+            // Crear respuestas; garantizar exactamente una correcta (primera marcada)
+            $marked = false;
+            foreach ($validated['answers'] as $ans) {
+                $isCorrect = false;
+                if (! $marked && ! empty($ans['is_correct'])) {
+                    $isCorrect = true;
+                    $marked = true;
+                }
+                Answer::create([
+                    'challenge_id' => $challenge->id,
+                    'description' => $ans['description'],
+                    'is_correct' => $isCorrect,
+                ]);
+                
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Reto creado exitosamente.',
+                'data' => new ChallengeResource($challenge->load('answers','category'))
+            ], 201);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error creando el reto.',
+                'error' => $e->getMessage()
+            ],500);
+        }
     }
 
     // Actualizar un challenge (solo admin)

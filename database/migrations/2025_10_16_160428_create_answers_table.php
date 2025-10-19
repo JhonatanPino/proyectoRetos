@@ -9,10 +9,10 @@ return new class extends Migration
     public function up()
     {
         Schema::create('answers', function (Blueprint $table) {
-            $table->id(); // id (PK, INT, AUTO_INCREMENT)
-            $table->foreignId('challenge_id')->constrained('challenges')->onDelete('cascade'); // FK a Challenges
-            $table->string('description', 250)->unique(); // VARCHAR(250)
-            $table->boolean('is_correct')->default(false); // BOOLEAN
+            $table->id(); 
+            $table->foreignId('challenge_id')->constrained('challenges')->onDelete('cascade');
+            $table->string('description', 250)->unique();
+            $table->boolean('is_correct')->default(false);
             $table->timestamps();
             
             // Índices para performance
@@ -26,3 +26,5 @@ return new class extends Migration
         Schema::dropIfExists('answers');
     }
 };
+
+

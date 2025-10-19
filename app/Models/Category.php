@@ -37,4 +37,5 @@ class Category extends Model
     {
         $this->attributes['name'] = ucfirst(strtolower($value));
     }
+
 }
