@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Http\Resources\CategoryResource;
 use Illuminate\Support\Facades\Validator;
-use App\Models\Challenge;
 
 class CategoryController extends Controller
 {
@@ -17,13 +16,12 @@ class CategoryController extends Controller
         $this->middleware('role:admin')->only(['store','update','destroy']);
     }
 
-    // Listar todas las categorías con conteo de challenges
     public function index()
     {
         $categories = Category::withCount('challenges')->get();
         return CategoryResource::collection($categories);
     }
-    // Crear categoría (validación incluida) — solo admin
+    
     public function store(Request $request)
     {
         if ($request->user()->role !== 'admin') {
@@ -51,13 +49,12 @@ class CategoryController extends Controller
         ], 201);
     }
 
-    // Mostrar categoría con sus challenges
+    
     public function show(Category $category)
     {
         return new CategoryResource($category->load('challenges'));
     }
 
-    // Actualizar categoría — solo admin
     public function update(Request $request, Category $category)
     {
         if ($request->user()->role !== 'admin') {
@@ -73,7 +70,6 @@ class CategoryController extends Controller
         return new CategoryResource($category);
     }
 
-    // Eliminar categoría — solo admin
     public function destroy(Request $request, Category $category)
     {
         if ($request->user()->role !== 'admin') {
@@ -84,7 +80,6 @@ class CategoryController extends Controller
         return response()->noContent();
     }
 
-    // API: Obtener categorías para dropdown
     public function apiIndex()
     {
         return Category::select('id', 'name')->get();

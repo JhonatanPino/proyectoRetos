@@ -7,20 +7,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Models\Answer;
-use App\Models\Challenge;
 use App\Http\Resources\AnswerResource;
 
 class AnswerController extends Controller
 {
     public function __construct()
     {
-        // Rutas públicas: index, show; resto requiere autenticación
         $this->middleware('auth:api')->except(['index', 'show']);
         $this->middleware('role:admin')->only(['store','update','destroy']);
-
     }
 
-    // Listar respuestas (opcional filter por challenge_id)
     public function index(Request $request)
     {
         $query = Answer::query();
@@ -34,7 +30,6 @@ class AnswerController extends Controller
         return AnswerResource::collection($answers);
     }
 
-    // Crear respuesta (solo admin)
     public function store(Request $request)
     {
         if ($request->user()->role !== 'admin') {
@@ -66,13 +61,11 @@ class AnswerController extends Controller
         return (new AnswerResource($answer->load('challenge')))->response()->setStatusCode(201);
     }
 
-    // Mostrar respuesta
     public function show(Answer $answer)
     {
         return new AnswerResource($answer->load('challenge', 'answers'));
     }
 
-    // Actualizar respuesta (solo admin)
     public function update(Request $request, Answer $answer)
     {
         if ($request->user()->role !== 'admin') {

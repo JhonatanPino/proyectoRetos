@@ -7,9 +7,192 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
-<img src="./resources/images/proyectoretos.png" alt="Esquema de BD" width="400" />
+# proyectoRetos
 
-![proyectoretos.png](./resources/images/proyectoretos.png)
+## Descripción
+Aplicación backend en Laravel para gestionar retos con categorías, respuestas y puntuaciones de usuarios. Permite registro/login (JWT), creación y administración de categorías y retos (admins) y envío de respuestas por usuarios.
+
+## Requisitos
+- PHP >= 7.x
+- Composer
+- MySQL / MariaDB (o DB soportada por Laravel)
+- Extensiones PHP comunes
+
+## Variables de entorno
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3307
+DB_DATABASE=proyecto_retos
+DB_USERNAME=root
+DB_PASSWORD=
+JWT_SECRET=tu_JWT_SECRET
+
+## Configuración local
+1. Clonar repo
+   git clone <repositorio> proyectoRetos
+
+2. Instalar dependencias PHP
+   composer install
+
+3. Copiar .env y configurar
+   cp .env.example .env
+   editar `.env` con tus credenciales DB y JWT_SECRET
+   
+4. Generar App Key y JWT secret
+   php artisan key:generate
+   php artisan jwt:secret
+
+5. Migrar y seed
+   php artisan migrate
+   php artisan db:seed
+
+6. Levantar servidor local
+   php artisan serve --host=127.0.0.1 --port=8000
+
+## Endpoints principales
+
+### Rutas públicas:
+- Registrar un nuevo usuario
+curl -X POST http://127.0.0.1:8000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{"username":"usuario1","password":"password123"}'
+
+- Login (obtén token)
+curl -X POST http://127.0.0.1:8000/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+
+### Rutas que requieren autenticación:
+### Usuarios
+- Perfil del usuario autenticado (admin/user)
+curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  -H "Accept: application/json" \
+  GET http://127.0.0.1:8000/api/users/me
+
+- Listar todos los usuarios (admin)
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Accept: application/json" \
+  GET http://127.0.0.1:8000/api/users
+
+- Ver un usuario por id (admin)
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Accept: application/json" \
+  GET http://127.0.0.1:8000/api/users/2
+
+- Logout (admin)
+curl -X POST http://127.0.0.1:8000/api/user/logout \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Accept: application/json"
+
+### Categorias
+- Listar categorías (admin/user)
+curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  -H "Accept: application/json" \
+  GET http://127.0.0.1:8000/api/categories
+
+- Ver categoría por id (admin/user)
+curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  -H "Accept: application/json" \
+  GET http://127.0.0.1:8000/api/categories/1
+
+- Crear categoría (admin)
+curl -X POST http://127.0.0.1:8000/api/categories \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Programación"}'
+
+- Actualizar categoría (admin)
+curl -X PUT http://127.0.0.1:8000/api/categories/1 \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Programación avanzada"}'
+
+- Eliminar categoría (admin)
+curl -X DELETE http://127.0.0.1:8000/api/categories/1 \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Accept: application/json"
+
+### Retos
+- Listar retos (opcional, filtrar por categoría: ?category_id=1) (admin/user)
+curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  -H "Accept: application/json" \
+  GET http://127.0.0.1:8000/api/challenges?category_id=1
+  GET http://127.0.0.1:8000/api/challenges
+
+- Ver reto por su id con sus respuestas (admin muestra la correcta, user no)
+curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  -H "Accept: application/json" \
+  http://127.0.0.1:8000/api/challenges/11
+
+- Crear reto con respuestas (admin)
+curl -X POST http://127.0.0.1:8000/api/challenges \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "category_id":1,
+    "name":"Reto ejemplo",
+    "description":"Resuelve X",
+    "score_value":10,
+    "answers":[
+      {"description":"A","is_correct":false},
+      {"description":"B","is_correct":true},
+      {"description":"C","is_correct":false},
+      {"description":"D","is_correct":false}
+    ]
+  }'
+
+- Actualizar reto y sincronizar respuestas (admin)
+curl -X PATCH http://127.0.0.1:8000/api/challenges/11 \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name":"Reto modificado",
+    "answers":[
+      {"id":21,"description":"A mod","is_correct":false},
+      {"id":22,"description":"B mod","is_correct":true},
+      {"description":"Nueva C","is_correct":false},
+      {"description":"Nueva D","is_correct":false}
+    ]
+  }'
+
+- Eliminar reto (admin)
+curl -X DELETE http://127.0.0.1:8000/api/challenges/11 \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Accept: application/json"
+
+- Enviar respuesta a un reto (submit) (user)
+curl -X POST http://127.0.0.1:8000/api/challenges/11/submit \
+  -H "Authorization: Bearer <USER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"selected_answer_id":45}'
+
+### Respuestas
+- Listar todas las answers (autenticado)
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Accept: application/json" \
+  http://127.0.0.1:8000/api/answers
+
+- Crear respuesta individual (admin)
+curl -X POST http://127.0.0.1:8000/api/answers \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"challenge_id":11,"description":"Opción X","is_correct":false}'
+
+- Actualizar respuesta individual (admin)
+curl -X PATCH http://127.0.0.1:8000/api/answers/45 \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"description":"Texto actualizado","is_correct":true}'
+
+- Eliminar respuesta (admin)
+curl -X DELETE http://127.0.0.1:8000/api/answers/45 \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Accept: application/json"
+
+
+## Esquema de la base de datos
+
+<img src="./resources/images/proyectoretos.png" alt="Esquema de BD" width="800" />
 
 ## About Laravel
 

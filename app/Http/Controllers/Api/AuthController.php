@@ -13,7 +13,6 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
-    // Registro público: crea usuario con rol 'user' por defecto y devuelve token
     public function register(Request $request)
     {
         $v = Validator::make($request->all(), [
@@ -54,7 +53,6 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // Login público: devuelve token si credenciales correctas
     public function login(Request $request)
     {
         $v = Validator::make($request->all(), [

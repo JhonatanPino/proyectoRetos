@@ -15,11 +15,9 @@ class UserAnswerController extends Controller
 {
     public function __construct()
     {
-        // proteger todas las rutas excepto index/show si quieres público
         $this->middleware('auth:api')->except(['index','show']);
     }
 
-    // Listar intentos (sin paginación). Opcional filter por user_id / challenge_id
     public function index(Request $request)
     {
         $query = UserAnswer::with(['user', 'challenge', 'selectedAnswer']);
@@ -36,7 +34,6 @@ class UserAnswerController extends Controller
         return UserAnswerResource::collection($items);
     }
 
-    // Crear un intento (el usuario autenticado puede crear para sí; admins pueden crear para cualquier user_id)
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -101,13 +98,11 @@ class UserAnswerController extends Controller
         return (new UserAnswerResource($userAnswer->load(['user','challenge','selectedAnswer'])))->response()->setStatusCode(201);
     }
 
-    // Mostrar intento
     public function show(UserAnswer $userAnswer)
     {
         return new UserAnswerResource($userAnswer->load(['user','challenge','selectedAnswer']));
     }
 
-    // Actualizar intento (solo admin o el propio autor)
     public function update(Request $request, UserAnswer $userAnswer)
     {
         $authUser = $request->user();
@@ -175,7 +170,6 @@ class UserAnswerController extends Controller
         return new UserAnswerResource($userAnswerUpdated->load(['user','challenge','selectedAnswer']));
     }
 
-    // Eliminar intento (solo admin o autor)
     public function destroy(Request $request, UserAnswer $userAnswer)
     {
         $authUser = $request->user();

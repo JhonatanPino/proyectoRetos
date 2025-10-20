@@ -31,7 +31,6 @@ class User extends Authenticatable implements JWTSubject
         'score' => 'integer',
     ];
     
-    // Evitar que un admin tenga score distinto de 0 al guardar
     protected static function booted()
     {
         static::saving(function (User $user) {
@@ -58,7 +57,6 @@ class User extends Authenticatable implements JWTSubject
         );
     }
 
-    // JWTSubject methods
     public function getJWTIdentifier()
     {
         return $this->getKey();
@@ -69,7 +67,6 @@ class User extends Authenticatable implements JWTSubject
         return [];
     }
 
-    // SCOPES ÚTILES
     public function scopeAdmins($query)
     {
         return $query->where('role', 'admin');
@@ -85,7 +82,6 @@ class User extends Authenticatable implements JWTSubject
         return $query->where('score', '>=', $minScore);
     }
 
-    // ACCESORES
     public function getTotalCompletedAttribute()
     {
         // contar retos distintos donde el usuario tiene una sumisión correcta
@@ -115,7 +111,6 @@ class User extends Authenticatable implements JWTSubject
         return $total > 0 ? round(($completed / $total) * 100, 1) : 0;
     }
 
-    // MÉTODOS ÚTILES
     public function completeChallenge(Challenge $challenge)
     {
         // Comprobar si ya tiene una sumisión correcta para este challenge
@@ -129,7 +124,6 @@ class User extends Authenticatable implements JWTSubject
         }
 
         // Si no existe una sumisión correcta, incrementar score directamente.
-        // Nota: no se crea registro pivot aquí; si quieres guardar "completado" crea la tabla user_challenges
         $this->increment('score', $challenge->score_value);
         return $this->fresh();
     }
@@ -139,42 +133,40 @@ class User extends Authenticatable implements JWTSubject
         return $this->role === 'admin';
     }
 
-    // RELACIÓN CON UserAnswer
     public function userAnswers()
     {
         return $this->hasMany(UserAnswer::class);
     }
 
-    // MÉTODO CLAVE: Enviar respuesta
     public function submitAnswer(Challenge $challenge, Answer $selectedAnswer)
     {
-    // Prevenir duplicados
-    if ($this->userAnswers()->where('challenge_id', $challenge->id)->exists()) {
-        return ['success' => false, 'message' => 'Ya respondiste este reto'];
+        // Prevenir duplicados
+        if ($this->userAnswers()->where('challenge_id', $challenge->id)->exists()) {
+            return ['success' => false, 'message' => 'Ya respondiste este reto'];
+        }
+
+        $isCorrect = $selectedAnswer->is_correct;
+        
+        $userAnswer = UserAnswer::create([
+            'user_id' => $this->id,
+            'challenge_id' => $challenge->id,
+            'selected_answer_id' => $selectedAnswer->id,
+            'is_correct_submission' => $isCorrect,
+            'submitted_at' => now()
+        ]);
+
+        // SUMAR PUNTOS si es correcta
+        if ($isCorrect) {
+            $this->increment('score', $challenge->score_value);
+        }
+
+        return [
+            'success' => true, 
+            'is_correct' => $isCorrect,
+            'score_earned' => $isCorrect ? $challenge->score_value : 0,
+            'user_answer' => $userAnswer
+        ];
     }
-
-    $isCorrect = $selectedAnswer->is_correct;
-    
-    $userAnswer = UserAnswer::create([
-        'user_id' => $this->id,
-        'challenge_id' => $challenge->id,
-        'selected_answer_id' => $selectedAnswer->id,
-        'is_correct_submission' => $isCorrect,
-        'submitted_at' => now()
-    ]);
-
-    // SUMAR PUNTOS si es correcta
-    if ($isCorrect) {
-        $this->increment('score', $challenge->score_value);
-    }
-
-    return [
-        'success' => true, 
-        'is_correct' => $isCorrect,
-        'score_earned' => $isCorrect ? $challenge->score_value : 0,
-        'user_answer' => $userAnswer
-    ];
-}
 }
 
 

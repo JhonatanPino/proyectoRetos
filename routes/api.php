@@ -16,9 +16,7 @@ Route::post('/login',    [AuthController::class, 'login']);
 Route::middleware(['auth:api'])->group(function () {
     
     // Users
-    Route::get('/users/me', function (Request $request) {
-        return response()->json($request->user());
-    });
+    Route::get('/users/me', function (Request $request) {return response()->json($request->user());});
     Route::get('/users', [UserController::class, 'index'])->middleware('role:admin');
     Route::get('/users/{user}', [UserController::class, 'show'])->middleware('role:admin');
     Route::post('/user/logout', [AuthController::class, 'logout'])->middleware('role:admin');

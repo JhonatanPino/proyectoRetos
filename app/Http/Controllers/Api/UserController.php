@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\User;
 use App\Http\Resources\UserResource;
 use App\Http\Requests\StoreUserRequest;
@@ -18,14 +17,12 @@ class UserController extends Controller
         $this->authorizeResource(User::class, 'user');
     }
 
-    // Listar todos los usuarios
     public function index()
     {
         $users = User::orderBy('id')->get();
         return UserResource::collection($users);
     }
 
-    // Crear usuario (StoreUserRequest valida y autoriza)
     public function store(StoreUserRequest $request)
     {
         $validated = $request->validated();
@@ -40,13 +37,11 @@ class UserController extends Controller
         return (new UserResource($user))->response()->setStatusCode(201);
     }
 
-    // Mostrar usuario
     public function show(User $user)
     {
         return new UserResource($user);
     }
 
-    // Actualizar usuario (UpdateUserRequest valida y autoriza)
     public function update(UpdateUserRequest $request, User $user)
     {
         $validated = $request->validated();
@@ -63,7 +58,6 @@ class UserController extends Controller
         return new UserResource($user->fresh());
     }
 
-    // Eliminar usuario
     public function destroy(User $user)
     {
         $user->delete();

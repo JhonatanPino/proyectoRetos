@@ -16,13 +16,10 @@ class ChallengeController extends Controller
 {
     public function __construct()
     {
-        // Rutas públicas: index, show; el resto requiere autenticación
         $this->middleware('auth:api')->except(['index', 'show']);
         $this->middleware('role:admin')->only(['store','update','destroy']);
-
     }
 
-    // Lista los retos (opcional filter por category_id). Autorizado: admin,user
     public function index(Request $request)
     {
         $query = Challenge::with(['category','answers']);
@@ -35,13 +32,11 @@ class ChallengeController extends Controller
         return ChallengeResource::collection($challenges);
     }
 
-    // Mostrar un challenge concreto (con relaciones)
     public function show(Challenge $challenge)
     {
         return new ChallengeResource($challenge->load(['category', 'answers']));
     }
 
-    // Crear un nuevo challenge (solo admin)
     public function store(Request $request)
     {
         if ($request->user()->role !== 'admin') {
@@ -81,7 +76,7 @@ class ChallengeController extends Controller
                 'score_value' => $validated['score_value'],
             ]);
 
-            // Crear respuestas; garantizar exactamente una correcta (primera marcada)
+            // Crear respuestas; garantizar exactamente una correcta
             $marked = false;
             foreach ($validated['answers'] as $ans) {
                 $isCorrect = false;
@@ -113,7 +108,6 @@ class ChallengeController extends Controller
         }
     }
 
-    // Actualizar un reto (incluye sincronizar respuestas). Autorizado: admin
     public function update(Request $request, Challenge $challenge)
     {
         if ($request->user()->role !== 'admin') {
@@ -218,7 +212,6 @@ class ChallengeController extends Controller
         }
     }
 
-    // Eliminar un challenge (solo admin)
     public function destroy(Request $request, Challenge $challenge)
     {
         if ($request->user()->role !== 'admin') {
@@ -231,7 +224,6 @@ class ChallengeController extends Controller
         ], 200);
     }
 
-    // Listar challenges por categoría
     public function byCategory($categoryId)
     {
         $category = Category::findOrFail($categoryId);
@@ -240,66 +232,66 @@ class ChallengeController extends Controller
     }
 
     public function submit(Request $request, Challenge $challenge)
-{
-    $user = $request->user();
+    {
+        $user = $request->user();
 
-    $v = Validator::make($request->all(), [
-        'selected_answer_id' => 'required|integer|exists:answers,id',
-    ]);
-
-    if ($v->fails()) {
-        return response()->json(['errors' => $v->errors()], 422);
-    }
-
-    $selectedAnswerId = (int) $v->validated()['selected_answer_id'];
-
-    $answer = Answer::find($selectedAnswerId);
-    if (! $answer || $answer->challenge_id !== $challenge->id) {
-        return response()->json(['message' => 'La respuesta seleccionada no pertenece a este reto.'], 422);
-    }
-
-    if ($user->role !== 'user') {
-        return response()->json(['message' => 'Solo usuarios tipo user pueden enviar respuestas.'], 403);
-    }
-
-    $alreadyCorrect = UserAnswer::where('user_id', $user->id)
-        ->where('challenge_id', $challenge->id)
-        ->where('is_correct_submission', true)
-        ->exists();
-
-    if ($alreadyCorrect) {
-        return response()->json(['message' => 'Ya respondiste correctamente este reto anteriormente.'], 409);
-    }
-
-    DB::beginTransaction();
-    try {
-        $isCorrect = (bool) $answer->is_correct;
-
-        $userAnswer = UserAnswer::create([
-            'user_id' => $user->id,
-            'challenge_id' => $challenge->id,
-            'selected_answer_id' => $selectedAnswerId,
-            'is_correct_submission' => $isCorrect,
-            'submitted_at' => now(),
+        $v = Validator::make($request->all(), [
+            'selected_answer_id' => 'required|integer|exists:answers,id',
         ]);
 
-        if ($isCorrect && ! $alreadyCorrect) {
-            $user->increment('score', (int) $challenge->score_value);
+        if ($v->fails()) {
+            return response()->json(['errors' => $v->errors()], 422);
         }
 
-        DB::commit();
+        $selectedAnswerId = (int) $v->validated()['selected_answer_id'];
 
-        return response()->json([
-            'message' => $isCorrect ? 'Respuesta correcta. Puntos asignados.' : 'Respuesta registrada. Incorrecta.',
-            'data' => [
-                'user_answer_id' => $userAnswer->id,
-                'is_correct' => $isCorrect,
-                'user_score' => $user->fresh()->score,
-            ]
-        ], 201);
-    } catch (\Throwable $e) {
-        DB::rollBack();
-        return response()->json(['message' => 'Error registrando la respuesta.','error' => $e->getMessage()], 500);
+        $answer = Answer::find($selectedAnswerId);
+        if (! $answer || $answer->challenge_id !== $challenge->id) {
+            return response()->json(['message' => 'La respuesta seleccionada no pertenece a este reto.'], 422);
+        }
+
+        if ($user->role !== 'user') {
+            return response()->json(['message' => 'Solo usuarios tipo user pueden enviar respuestas.'], 403);
+        }
+
+        $alreadyCorrect = UserAnswer::where('user_id', $user->id)
+            ->where('challenge_id', $challenge->id)
+            ->where('is_correct_submission', true)
+            ->exists();
+
+        if ($alreadyCorrect) {
+            return response()->json(['message' => 'Ya respondiste correctamente este reto anteriormente.'], 409);
+        }
+
+        DB::beginTransaction();
+        try {
+            $isCorrect = (bool) $answer->is_correct;
+
+            $userAnswer = UserAnswer::create([
+                'user_id' => $user->id,
+                'challenge_id' => $challenge->id,
+                'selected_answer_id' => $selectedAnswerId,
+                'is_correct_submission' => $isCorrect,
+                'submitted_at' => now(),
+            ]);
+
+            if ($isCorrect && ! $alreadyCorrect) {
+                $user->increment('score', (int) $challenge->score_value);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => $isCorrect ? 'Respuesta correcta. Puntos asignados.' : 'Respuesta registrada. Incorrecta.',
+                'data' => [
+                    'user_answer_id' => $userAnswer->id,
+                    'is_correct' => $isCorrect,
+                    'user_score' => $user->fresh()->score,
+                ]
+            ], 201);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Error registrando la respuesta.','error' => $e->getMessage()], 500);
+        }
     }
-}
 }
