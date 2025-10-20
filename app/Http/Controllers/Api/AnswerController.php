@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
 use App\Models\Answer;
 use App\Models\Challenge;
 use App\Http\Resources\AnswerResource;
@@ -69,7 +69,7 @@ class AnswerController extends Controller
     // Mostrar respuesta
     public function show(Answer $answer)
     {
-        return new AnswerResource($answer->load('challenge'));
+        return new AnswerResource($answer->load('challenge', 'answers'));
     }
 
     // Actualizar respuesta (solo admin)
@@ -79,33 +79,49 @@ class AnswerController extends Controller
             return response()->json(['message' => 'No autorizado'], 403);
         }
 
-        $validated = $request->validate([
-            'challenge_id' => ['sometimes','integer','exists:challenges,id'],
-            'description'  => ['sometimes','string'],
-            'is_correct'   => ['sometimes','boolean'],
+        $v = Validator::make($request->all(), [
+        'description' => ['sometimes','required','string'],
+        'is_correct'  => ['sometimes','boolean'],
+        'challenge_id'=> ['sometimes','integer','exists:challenges,id'],
         ]);
 
-        DB::transaction(function () use ($validated, $answer) {
-            $answer->update($validated);
-
-            if (array_key_exists('is_correct', $validated) && $validated['is_correct']) {
-                Answer::where('challenge_id', $answer->challenge_id)
-                      ->where('id', '!=', $answer->id)
-                      ->update(['is_correct' => false]);
-            }
-        });
-
-        return new AnswerResource($answer->fresh()->load('challenge'));
-    }
-
-    // Eliminar respuesta (solo admin)
-    public function destroy(Request $request, Answer $answer)
-    {
-        if ($request->user()->role !== 'admin') {
-            return response()->json(['message' => 'No autorizado'], 403);
+        if ($v->fails()) {
+            return response()->json(['errors' => $v->errors()], 422);
         }
 
-        $answer->delete();
-        return response()->noContent();
+        $data = $v->validated();
+
+        // No permitir reasignar la respuesta a otro challenge
+        if (isset($data['challenge_id']) && $data['challenge_id'] != $answer->challenge_id) {
+            return response()->json(['message' => 'No puede cambiar el challenge_id de la respuesta.'], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Si se marca como correcta, desmarcar las demás del mismo challenge
+            if (array_key_exists('is_correct', $data) && $data['is_correct']) {
+                Answer::where('challenge_id', $answer->challenge_id)
+                    ->where('id', '!=', $answer->id)
+                    ->update(['is_correct' => false]);
+            }
+
+            // No actualizar challenge_id aunque venga (ya validado)
+            unset($data['challenge_id']);
+
+            $answer->update($data);
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Respuesta actualizada correctamente.',
+                'data' => new AnswerResource($answer->fresh())
+            ], 200);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error actualizando la respuesta.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

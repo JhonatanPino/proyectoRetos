@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\CategoryResource;
+use App\Http\Resources\AnswerResource;
 
 class ChallengeResource extends JsonResource
 {
@@ -14,11 +15,11 @@ class ChallengeResource extends JsonResource
             'name' => $this->name ?? null,
             'description' => $this->description ?? null,
             'category_id' => $this->category_id ?? null,
-            'category' => $this->whenLoaded('category', fn() => new CategoryResource($this->category)),
             'score_value' => isset($this->score_value) ? (int) $this->score_value : null,
             'full_name' => $this->when($this->relationLoaded('category') && $this->category, fn() => $this->full_name),
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
+            'answers' => $this->whenLoaded('answers', fn() => AnswerResource::collection($this->answers)),
         ];
     }
 }
