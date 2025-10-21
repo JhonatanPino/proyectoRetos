@@ -19,7 +19,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/users/me', function (Request $request) {return response()->json($request->user());});
     Route::get('/users', [UserController::class, 'index'])->middleware('role:admin');
     Route::get('/users/{user}', [UserController::class, 'show'])->middleware('role:admin');
-    Route::post('/user/logout', [AuthController::class, 'logout'])->middleware('role:admin');
+    Route::post('/user/logout', [AuthController::class, 'logout']);
 
     // Categorías
     Route::get('/categories', [CategoryController::class, 'index']);
@@ -37,6 +37,7 @@ Route::middleware(['auth:api'])->group(function () {
     Route::patch('/challenges/{challenge}', [ChallengeController::class, 'update'])->middleware('role:admin');
     Route::delete('/challenges/{challenge}', [ChallengeController::class, 'destroy'])->middleware('role:admin');
     Route::post('/challenges/{challenge}/submit', [ChallengeController::class, 'submit'])->middleware('role:user');;
+    Route::post('/challenges/generate-random', [ChallengeController::class, 'generateRandom'])->middleware('role:admin');
 
     //Answers
     Route::get('/answers', [AnswerController::class, 'index']);

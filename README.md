@@ -10,122 +10,124 @@
 # proyectoRetos
 
 ## Descripción
-Aplicación backend en Laravel para gestionar retos con categorías, respuestas y puntuaciones de usuarios. Permite registro/login (JWT), creación y administración de categorías y retos (admins) y envío de respuestas por usuarios.
+Aplicación backend en Laravel para gestionar retos con categorías, respuestas y puntuaciones de usuarios. Permite registro/login (JWT), creación y administración de categorías y retos (admins), envío de respuestas por usuarios y genera automáticamente un nuevo reto en base a una categoría por medio de OpenAI.
 
 ## Requisitos
-- PHP >= 7.x
+- PHP >= 8.0
 - Composer
 - MySQL / MariaDB (o DB soportada por Laravel)
 - Extensiones PHP comunes
 
 ## Variables de entorno
-DB_CONNECTION=mysql
-DB_HOST=localhost
-DB_PORT=3307
-DB_DATABASE=proyecto_retos
-DB_USERNAME=root
-DB_PASSWORD=
-JWT_SECRET=tu_JWT_SECRET
+-DB_CONNECTION=mysql
+-DB_HOST=localhost
+-DB_PORT=3307
+-DB_DATABASE=proyecto_retos
+-DB_USERNAME=root
+-DB_PASSWORD=
+-JWT_SECRET=tu_JWT_SECRET
+-OPENAI_API_KEY=tu_OPENAI_API_KEY
+-OPENAI_MODEL=gpt-4o-mini
 
 ## Configuración local
 1. Clonar repo
-   git clone <repositorio> proyectoRetos
+git clone <repositorio> proyectoRetos
 
 2. Instalar dependencias PHP
-   composer install
+composer install
 
 3. Copiar .env y configurar
-   cp .env.example .env
-   editar `.env` con tus credenciales DB y JWT_SECRET
+cp .env.example .env
+editar `.env` con tus credenciales DB y JWT_SECRET
    
 4. Generar App Key y JWT secret
-   php artisan key:generate
-   php artisan jwt:secret
+php artisan key:generate
+php artisan jwt:secret
 
 5. Migrar y seed
-   php artisan migrate
-   php artisan db:seed
+php artisan migrate
+php artisan db:seed
 
 6. Levantar servidor local
-   php artisan serve --host=127.0.0.1 --port=8000
+php artisan serve --host=127.0.0.1 --port=8000
 
 ## Endpoints principales
 
 ### Rutas públicas:
 - Registrar un nuevo usuario
-curl -X POST http://127.0.0.1:8000/api/register \
+  curl -X POST http://127.0.0.1:8000/api/register \
   -H "Content-Type: application/json" \
   -d '{"username":"usuario1","password":"password123"}'
 
 - Login (obtén token)
-curl -X POST http://127.0.0.1:8000/api/login \
+  curl -X POST http://127.0.0.1:8000/api/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
 
 ### Rutas que requieren autenticación:
 ### Usuarios
 - Perfil del usuario autenticado (admin/user)
-curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
   -H "Accept: application/json" \
   GET http://127.0.0.1:8000/api/users/me
 
 - Listar todos los usuarios (admin)
-curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Accept: application/json" \
   GET http://127.0.0.1:8000/api/users
 
 - Ver un usuario por id (admin)
-curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Accept: application/json" \
   GET http://127.0.0.1:8000/api/users/2
 
 - Logout (admin)
-curl -X POST http://127.0.0.1:8000/api/user/logout \
+  curl -X POST http://127.0.0.1:8000/api/user/logout \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Accept: application/json"
 
 ### Categorias
 - Listar categorías (admin/user)
-curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
   -H "Accept: application/json" \
   GET http://127.0.0.1:8000/api/categories
 
 - Ver categoría por id (admin/user)
-curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
   -H "Accept: application/json" \
   GET http://127.0.0.1:8000/api/categories/1
 
 - Crear categoría (admin)
-curl -X POST http://127.0.0.1:8000/api/categories \
+  curl -X POST http://127.0.0.1:8000/api/categories \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"name":"Programación"}'
 
 - Actualizar categoría (admin)
-curl -X PUT http://127.0.0.1:8000/api/categories/1 \
+  curl -X PUT http://127.0.0.1:8000/api/categories/1 \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"name":"Programación avanzada"}'
 
 - Eliminar categoría (admin)
-curl -X DELETE http://127.0.0.1:8000/api/categories/1 \
+  curl -X DELETE http://127.0.0.1:8000/api/categories/1 \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Accept: application/json"
 
 ### Retos
 - Listar retos (opcional, filtrar por categoría: ?category_id=1) (admin/user)
-curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
   -H "Accept: application/json" \
   GET http://127.0.0.1:8000/api/challenges?category_id=1
   GET http://127.0.0.1:8000/api/challenges
 
 - Ver reto por su id con sus respuestas (admin muestra la correcta, user no)
-curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
+  curl -H "Authorization: Bearer <USER_OR_ADMIN_TOKEN>" \
   -H "Accept: application/json" \
-  http://127.0.0.1:8000/api/challenges/11
+  GET http://127.0.0.1:8000/api/challenges/11
 
 - Crear reto con respuestas (admin)
-curl -X POST http://127.0.0.1:8000/api/challenges \
+  curl -X POST http://127.0.0.1:8000/api/challenges \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -142,7 +144,7 @@ curl -X POST http://127.0.0.1:8000/api/challenges \
   }'
 
 - Actualizar reto y sincronizar respuestas (admin)
-curl -X PATCH http://127.0.0.1:8000/api/challenges/11 \
+  curl -X PATCH http://127.0.0.1:8000/api/challenges/11 \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -156,36 +158,47 @@ curl -X PATCH http://127.0.0.1:8000/api/challenges/11 \
   }'
 
 - Eliminar reto (admin)
-curl -X DELETE http://127.0.0.1:8000/api/challenges/11 \
+  curl -X DELETE http://127.0.0.1:8000/api/challenges/11 \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Accept: application/json"
 
 - Enviar respuesta a un reto (submit) (user)
-curl -X POST http://127.0.0.1:8000/api/challenges/11/submit \
+  curl -X POST http://127.0.0.1:8000/api/challenges/11/submit \
   -H "Authorization: Bearer <USER_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"selected_answer_id":45}'
 
+### Integracion con OpenAI
+- Genera automaticamente un reto en base a una categoria (anmin)
+  curl -X POST http://127.0.0.1:8000/api/challenges/generate-random \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "category_id": 13,
+    "answers_count": 4,
+    "score_value": 15
+  }'
+
 ### Respuestas
 - Listar todas las answers (autenticado)
-curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Accept: application/json" \
-  http://127.0.0.1:8000/api/answers
+  GET http://127.0.0.1:8000/api/answers
 
 - Crear respuesta individual (admin)
-curl -X POST http://127.0.0.1:8000/api/answers \
+  curl -X POST http://127.0.0.1:8000/api/answers \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"challenge_id":11,"description":"Opción X","is_correct":false}'
 
 - Actualizar respuesta individual (admin)
-curl -X PATCH http://127.0.0.1:8000/api/answers/45 \
+  curl -X PATCH http://127.0.0.1:8000/api/answers/45 \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"description":"Texto actualizado","is_correct":true}'
 
 - Eliminar respuesta (admin)
-curl -X DELETE http://127.0.0.1:8000/api/answers/45 \
+  curl -X DELETE http://127.0.0.1:8000/api/answers/45 \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Accept: application/json"
 
