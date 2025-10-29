@@ -19,11 +19,12 @@ Route::middleware(['auth:api'])->group(function () {
     Route::get('/users/me', function (Request $request) {return response()->json($request->user());});
     Route::get('/users', [UserController::class, 'index'])->middleware('role:admin');
     Route::get('/users/{user}', [UserController::class, 'show'])->middleware('role:admin');
-    Route::post('/user/logout', [AuthController::class, 'logout']);
+    Route::post('/logout', [AuthController::class, 'logout']);
 
     // Categorías
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/categories/{category}', [CategoryController::class, 'show']);
+    Route::get('/categories/{category}/challenges', [ChallengeController::class, 'getChallengesByCategory']);
     Route::post('/categories', [CategoryController::class, 'store'])->middleware('role:admin');
     Route::put('/categories/{category}', [CategoryController::class, 'update'])->middleware('role:admin');
     Route::patch('/categories/{category}', [CategoryController::class, 'update'])->middleware('role:admin');

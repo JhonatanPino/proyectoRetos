@@ -38,6 +38,27 @@ class ChallengeController extends Controller
         return new ChallengeResource($challenge->load(['category', 'answers']));
     }
 
+    public function getChallengesByCategory(Request $request, $categoryId)
+    {
+        $challenges = Challenge::where('category_id', $categoryId)
+            ->with(['answers'])
+            ->get();
+
+        // Obtener los retos con información de si el usuario ya respondió
+        $userAnswers = UserAnswer::where('user_id', $request->user()->id)
+            ->pluck('challenge_id')
+            ->toArray();
+
+        $challenges->each(function ($challenge) use ($userAnswers) {
+            $challenge->user_has_answered = in_array($challenge->id, $userAnswers);
+        });
+
+        return response()->json([
+            'message' => 'Retos obtenidos con éxito.',
+            'data' => $challenges,
+        ]);
+    }
+
     public function store(Request $request)
     {
         if ($request->user()->role !== 'admin') {
@@ -235,7 +256,7 @@ class ChallengeController extends Controller
     public function submit(Request $request, Challenge $challenge)
     {
         $user = $request->user();
-
+        
         $v = Validator::make($request->all(), [
             'selected_answer_id' => 'required|integer|exists:answers,id',
         ]);
@@ -313,7 +334,14 @@ class ChallengeController extends Controller
         $category = Category::find($data['category_id']);
         $categoryName = $category?->name ?? 'General';
 
-        $prompt = "Genera un reto en la categoría '{$categoryName}' en JSON con campos: name (titulo), description (enunciado) y answers (array de {$answersCount} objetos {description,is_correct}). Debe haber exactamente 1 is_correct=true. Devuélveme SOLO JSON.";
+        //$prompt = "Genera un reto en la categoría '{$categoryName}' en JSON con campos: name (titulo), description (enunciado) y answers (array de {$answersCount} objetos {description,is_correct}). Debe haber exactamente 1 is_correct=true. Devuélveme SOLO JSON.";
+        $prompt = "Genera un reto en la categoría '{$categoryName}' en formato JSON con los siguientes campos:
+        - name: el título del reto.
+        - description: el enunciado del reto.
+        - answers: un array de {$answersCount} objetos, cada uno con los campos:
+        - description: el texto de la respuesta.
+        - is_correct: un booleano que indica si la respuesta es correcta.
+        Debe haber exactamente 1 respuesta con is_correct=true. Devuélveme SOLO JSON válido, sin texto adicional.";
 
         $apiKey = env('OPENAI_API_KEY');
         if (! $apiKey) return response()->json(['message'=>'OPENAI_API_KEY no configurada'], 500);
@@ -379,4 +407,6 @@ class ChallengeController extends Controller
             return response()->json(['message'=>'Error generando reto','error'=>$e->getMessage()], 500);
         }
     }
+
+    
 }

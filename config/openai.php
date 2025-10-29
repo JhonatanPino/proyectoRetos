@@ -13,6 +13,7 @@ return [
     */
 
     'api_key' => env('OPENAI_API_KEY'),
+    'model' => env('OPENAI_MODEL', 'gpt-4'),
     'organization' => env('OPENAI_ORGANIZATION'),
 
     /*

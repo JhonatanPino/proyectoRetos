@@ -7,10 +7,11 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
-# proyectoRetos
-
-## Descripción
+# Plataforma de Retos - Backend
 Aplicación backend en Laravel para gestionar retos con categorías, respuestas y puntuaciones de usuarios. Permite registro/login (JWT), creación y administración de categorías y retos (admins), envío de respuestas por usuarios y genera automáticamente un nuevo reto en base a una categoría por medio de OpenAI.
+
+## 🌍 Enlace del proyecto
+🔗 [Mi App Laravel + React](https://miapp.vercel.app)
 
 ## Requisitos
 - PHP >= 8.0
@@ -169,7 +170,7 @@ php artisan serve --host=127.0.0.1 --port=8000
   -d '{"selected_answer_id":45}'
 
 ### Integracion con OpenAI
-- Genera automaticamente un reto en base a una categoria (anmin)
+- Genera automaticamente un reto en base a una categoria, volver a intentar con otra categria si falla (anmin)
   curl -X POST http://127.0.0.1:8000/api/challenges/generate-random \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Content-Type: application/json" \
@@ -202,6 +203,11 @@ php artisan serve --host=127.0.0.1 --port=8000
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -H "Accept: application/json"
 
+## Licencia
+Este proyecto está bajo la licencia MIT.
+
+## Soporte
+Si tienes preguntas o necesitas ayuda, no dudes en abrir un Issue en el repositorio o contactarme a través de mi correo electrónico.
 
 ## Esquema de la base de datos
 

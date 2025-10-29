@@ -13,13 +13,15 @@ class UserController extends Controller
 
     public function __construct()
     {
-        $this->middleware('auth:api')->except(['store']); // permitir registro si lo deseas; ajusta según tu política
+        $this->middleware('auth:api')->except(['store']);
         $this->authorizeResource(User::class, 'user');
     }
 
     public function index()
     {
-        $users = User::orderBy('id')->get();
+        $users = User::where('role', '!=', 'admin')
+                 ->orderByDesc('score') 
+                 ->get();
         return UserResource::collection($users);
     }
 
