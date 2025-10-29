@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: laravel-backend
-    runtime: php
-    plan: free
-    buildCommand: |
-      composer install --no-dev --optimize-autoloader
-      php artisan key:generate
-    startCommand: php artisan serve --host 0.0.0.0 --port $PORT
