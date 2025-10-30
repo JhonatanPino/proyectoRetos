@@ -335,14 +335,14 @@ class ChallengeController extends Controller
         $categoryName = $category?->name ?? 'General';
 
         //$prompt = "Genera un reto en la categoría '{$categoryName}' en JSON con campos: name (titulo), description (enunciado) y answers (array de {$answersCount} objetos {description,is_correct}). Debe haber exactamente 1 is_correct=true. Devuélveme SOLO JSON.";
-        $prompt = "Genera un reto en la categoría '{$categoryName}' en formato JSON con los siguientes campos:
-        - name: el título del reto.
-        - description: el enunciado del reto.
-        - answers: un array de {$answersCount} objetos, cada uno con los campos:
-        - description: el texto de la respuesta.
-        - is_correct: un booleano que indica si la respuesta es correcta.
-        Debe haber exactamente 1 respuesta con is_correct=true. Devuélveme SOLO JSON válido, sin texto adicional.";
-
+        
+        $prompt = "Eres un generador de retos educativos. Genera un reto único y variado en la categoría '{$categoryName}' en formato JSON con los siguientes campos:
+            - name: el título del reto, que debe ser claro y relacionado con la categoría.
+            - description: el enunciado del reto, que debe ser breve pero informativo.
+            - answers: un array de {$answersCount} objetos, cada uno con los campos:
+            - description: el texto de la respuesta.
+            - is_correct: un booleano que indica si la respuesta es correcta.
+            Debe haber exactamente 1 respuesta con is_correct=true. Asegúrate de que el reto sea único y no se repita con otros retos en la misma categoría. Usa un lenguaje sencillo y evita términos técnicos innecesarios. Devuélveme SOLO JSON válido, sin texto adicional.";
         $apiKey = env('OPENAI_API_KEY');
         if (! $apiKey) return response()->json(['message'=>'OPENAI_API_KEY no configurada'], 500);
 
@@ -375,6 +375,15 @@ class ChallengeController extends Controller
             $parsed = json_decode($jsonText, true);
             if (json_last_error() !== JSON_ERROR_NONE || empty($parsed['answers']) || empty($parsed['name'])) {
                 return response()->json(['message'=>'No se pudo parsear JSON válido de la IA','raw'=>$text], 502);
+            }
+
+            // Validar si el reto ya existe en la categoría
+            $existingChallenge = Challenge::where('category_id', $data['category_id'])
+                ->where('name', $parsed['name'])
+                ->first();
+
+            if ($existingChallenge) {
+                return response()->json(['message' => 'El reto generado ya existe en esta categoría. Intenta nuevamente.'], 409);
             }
 
             if (count($parsed['answers']) !== $answersCount) {
