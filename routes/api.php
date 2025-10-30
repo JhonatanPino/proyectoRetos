@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\AnswerController;
 // Rutas públicas
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login',    [AuthController::class, 'login']);
+Route::get('/health', fn() => response()->json(['status' => 'ok']));
 
 // Rutas que requieren autenticación
 Route::middleware(['auth:api'])->group(function () {
