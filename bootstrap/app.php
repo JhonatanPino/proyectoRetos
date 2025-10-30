@@ -10,6 +10,12 @@
 | the IoC container for the system binding all of the various parts.
 |
 */
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__, '.env');
+if (file_exists(__DIR__ . '/.env')) {
+    $dotenv->load();
+} else {
+    // No hay .env, usamos variables de entorno del sistema
+}
 
 $app = new Illuminate\Foundation\Application(
     $_ENV['APP_BASE_PATH'] ?? dirname(__DIR__)
