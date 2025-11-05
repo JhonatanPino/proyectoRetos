@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['https://luxury-sopapillas-0092e5.netlify.app'],
+    'allowed_origins' => ['https://proyectoretos-frontend-t4t8.onrender.com'],
 
     'allowed_origins_patterns' => [],
 

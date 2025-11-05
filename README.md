@@ -11,7 +11,7 @@
 Aplicación backend en Laravel para gestionar retos con categorías, respuestas y puntuaciones de usuarios. Permite registro/login (JWT), creación y administración de categorías y retos (admins), envío de respuestas por usuarios y genera automáticamente un nuevo reto en base a una categoría por medio de OpenAI.
 
 ## 🌍 Enlace del proyecto
-🔗 
+🔗 https://proyectoretos-production.up.railway.app/api
 
 ## Requisitos
 - PHP >= 8.0
