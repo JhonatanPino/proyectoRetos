@@ -334,88 +334,101 @@ class ChallengeController extends Controller
         $category = Category::find($data['category_id']);
         $categoryName = $category?->name ?? 'General';
 
-        //$prompt = "Genera un reto en la categoría '{$categoryName}' en JSON con campos: name (titulo), description (enunciado) y answers (array de {$answersCount} objetos {description,is_correct}). Debe haber exactamente 1 is_correct=true. Devuélveme SOLO JSON.";
         
         $prompt = "Eres un generador de retos educativos. Genera un reto único y variado en la categoría '{$categoryName}' en formato JSON con los siguientes campos:
-            - name: el título del reto, que debe ser claro y relacionado con la categoría.
-            - description: el enunciado del reto, que debe ser breve pero informativo.
-            - answers: un array de {$answersCount} objetos, cada uno con los campos:
-            - description: el texto de la respuesta.
-            - is_correct: un booleano que indica si la respuesta es correcta.
-            Debe haber exactamente 1 respuesta con is_correct=true. Asegúrate de que el reto sea único y no se repita con otros retos en la misma categoría. Usa un lenguaje sencillo y evita términos técnicos innecesarios. Devuélveme SOLO JSON válido, sin texto adicional.";
+        - name: el título del reto, que debe ser claro, creativo y relacionado con la categoría.
+        - description: el enunciado del reto, que debe ser breve pero informativo y específico.
+        - answers: un array de {$answersCount} objetos, cada uno con los campos:
+        - description: el texto de la respuesta.
+        - is_correct: un booleano que indica si la respuesta es correcta.
+
+        Asegúrate de que:
+        - El reto sea completamente único y no se parezca a otros retos en la misma categoría.
+        - Las respuestas incorrectas sean plausibles pero claramente incorrectas.
+        - Haya exactamente 1 respuesta con is_correct=true.
+        - Los retos sean creativos, variados y específicos a la categoría.
+
+        Ejemplo de reto en la categoría 'Matemáticas':
+        {
+            \"name\": \"Suma básica\",
+            \"description\": \"¿Cuánto es 5 + 3?\",
+            \"answers\": [
+                {\"description\": \"6\", \"is_correct\": false},
+                {\"description\": \"8\", \"is_correct\": true},
+                {\"description\": \"7\", \"is_correct\": false},
+                {\"description\": \"9\", \"is_correct\": false}
+            ]
+        }
+        Genera un reto siguiendo este formato. Usa un lenguaje sencillo y evita términos técnicos innecesarios. Devuélveme SOLO JSON válido, sin texto adicional.";
+
         $apiKey = env('OPENAI_API_KEY');
         if (! $apiKey) return response()->json(['message'=>'OPENAI_API_KEY no configurada'], 500);
 
         try {
-            $resp = Http::withToken($apiKey)->post('https://api.openai.com/v1/chat/completions', [
-                'model' => env('OPENAI_MODEL','gpt-4o-mini'),
-                'messages' => [
-                    ['role'=>'system','content'=>'Eres un asistente que genera preguntas tipo test en JSON.'],
-                    ['role'=>'user','content'=>$prompt],
-                ],
-                'temperature' => 0.2,
-                'max_tokens' => 600,
-            ]);
-
-            if (! $resp->ok()) {
-                return response()->json(['message'=>'Error proveedor IA','detail'=>$resp->body()], 502);
-            }
-
-            $body = $resp->json();
-            $text = $body['choices'][0]['message']['content'] ?? ($body['choices'][0]['text'] ?? null);
-            if (! $text) return response()->json(['message'=>'Respuesta IA vacía'], 502);
-
-            // Extraer primer JSON válido
-            if (preg_match('/\{(?:[^{}]|(?R))*\}/s', $text, $m)) {
-                $jsonText = $m[0];
-            } else {
-                $jsonText = $text;
-            }
-
-            $parsed = json_decode($jsonText, true);
-            if (json_last_error() !== JSON_ERROR_NONE || empty($parsed['answers']) || empty($parsed['name'])) {
-                return response()->json(['message'=>'No se pudo parsear JSON válido de la IA','raw'=>$text], 502);
-            }
-
-            // Validar si el reto ya existe en la categoría
-            $existingChallenge = Challenge::where('category_id', $data['category_id'])
-                ->where('name', $parsed['name'])
-                ->first();
-
-            if ($existingChallenge) {
-                return response()->json(['message' => 'El reto generado ya existe en esta categoría. Intenta nuevamente.'], 409);
-            }
-
-            if (count($parsed['answers']) !== $answersCount) {
-                return response()->json(['message'=>"La IA devolvió ".count($parsed['answers'])." respuestas; se esperaban {$answersCount}"], 422);
-            }
-            $correctCount = collect($parsed['answers'])->where('is_correct', true)->count();
-            if ($correctCount !== 1) {
-                return response()->json(['message'=>'La IA debe marcar exactamente una respuesta como correcta'], 422);
-            }
-
-            DB::beginTransaction();
-            $challenge = Challenge::create([
-                'category_id' => $data['category_id'],
-                'name' => substr($parsed['name'],0,255),
-                'description' => substr($parsed['description'] ?? '',0,2000),
-                'score_value' => $score,
-            ]);
-            foreach ($parsed['answers'] as $ans) {
-                Answer::create([
-                    'challenge_id' => $challenge->id,
-                    'description' => substr($ans['description'] ?? '',0,1000),
-                    'is_correct' => !empty($ans['is_correct']),
+            $attempts = 0;
+            do {
+                $resp = Http::withToken($apiKey)->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => env('OPENAI_MODEL', 'gpt-4'),
+                    'messages' => [
+                        ['role' => 'system', 'content' => 'Eres un asistente que genera preguntas tipo test en JSON.'],
+                        ['role' => 'user', 'content' => $prompt],
+                    ],
+                    'temperature' => 0.7,
+                    'max_tokens' => 800,
                 ]);
-            }
-            DB::commit();
 
-            return response()->json(['message'=>'Reto generado por IA creado.','data'=> new ChallengeResource($challenge->load(['answers','category']))], 201);
+                if (!$resp->ok()) {
+                    return response()->json(['message' => 'Error proveedor IA', 'detail' => $resp->body()], 502);
+                }
+
+                $body = $resp->json();
+                $text = $body['choices'][0]['message']['content'] ?? null;
+
+                if ($text && preg_match('/\{(?:[^{}]|(?R))*\}/s', $text, $m)) {
+                    $jsonText = $m[0];
+                    $parsed = json_decode($jsonText, true);
+
+                    if (json_last_error() === JSON_ERROR_NONE && !empty($parsed['answers']) && !empty($parsed['name'])) {
+                        $existingChallenge = Challenge::where('category_id', $data['category_id'])
+                            ->where('name', $parsed['name'])
+                            ->first();
+
+                        if (!$existingChallenge) {
+                            // Salir del bucle si el reto es único
+                            DB::beginTransaction();
+                            $challenge = Challenge::create([
+                                'category_id' => $data['category_id'],
+                                'name' => substr($parsed['name'], 0, 255),
+                                'description' => substr($parsed['description'] ?? '', 0, 2000),
+                                'score_value' => $score,
+                            ]);
+
+                            foreach ($parsed['answers'] as $ans) {
+                                Answer::create([
+                                    'challenge_id' => $challenge->id,
+                                    'description' => substr($ans['description'] ?? '', 0, 1000),
+                                    'is_correct' => !empty($ans['is_correct']),
+                                ]);
+                            }
+                            DB::commit();
+
+                            return response()->json([
+                                'message' => 'Reto generado por IA creado.',
+                                'data' => new ChallengeResource($challenge->load(['answers', 'category']))
+                            ], 201);
+                        }
+                    }
+                }
+
+                $attempts++;
+            } while ($attempts < 3);
+
+            if ($attempts === 3) {
+                return response()->json(['message' => 'No se pudo generar un reto único después de varios intentos.'], 500);
+            }
         } catch (\Throwable $e) {
             DB::rollBack();
-            return response()->json(['message'=>'Error generando reto','error'=>$e->getMessage()], 500);
+            return response()->json(['message' => 'Error generando reto', 'error' => $e->getMessage()], 500);
         }
     }
-
-    
 }
